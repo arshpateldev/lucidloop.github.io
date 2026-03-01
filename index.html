@@ -2,330 +2,665 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
-    <title>LUCIDLOOP | OFFLINE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LucidLoop | Professional AI Interaction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chess logic and board assets -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        
         :root {
-            --bg: #ffffff;
-            --text: #000000;
-            --subtle: #f4f4f4;
-            --border: #e5e5e5;
-            --gray: #888888;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-user-select: none;
-            user-select: none;
+            --bg-color: #000000;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-bg: rgba(255, 255, 255, 0.02);
+            --chess-white: #f0f0f0;
+            --chess-black: #222222;
         }
 
         body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', -apple-system, system-ui, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
+            background-color: var(--bg-color);
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
             overflow: hidden;
         }
 
-        /* Top Brand Bar */
-        header {
-            padding: 40px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            z-index: 10;
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+        .avatar-retro {
+            image-rendering: pixelated;
+            background: #111;
+            border: 1px solid #333;
         }
 
-        .brand-logo {
-            letter-spacing: 0.8em;
-            font-weight: 900;
-            font-size: 0.9rem;
-            text-transform: uppercase;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Main Content */
-        main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+        .animate-msg { animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+
+        .typing-dot {
+            width: 4px; height: 4px;
+            background-color: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1.5s infinite ease-in-out both;
+        }
+
+        @keyframes pulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+        .emoji-reaction {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 12px;
+            margin-top: 8px;
+            display: inline-flex;
             align-items: center;
-            padding: 20px;
-            text-align: center;
+            gap: 4px;
         }
 
-        .offline-notice {
-            max-width: 500px;
-            margin-top: 40px;
+        .thought-process {
+            border-left: 1px solid rgba(255,255,255,0.1);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #666;
+            max-width: 80%;
         }
 
-        h1 {
+        #loaderOverlay {
+            position: fixed; inset: 0;
+            background: #000; z-index: 9999;
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+
+        .preloader {
+            position: relative; width: 300px; height: 300px;
+            display: flex; align-items: center; justify-content: center;
+            filter: drop-shadow(0 0 5px #fff);
+        }
+
+        .crack {
+            position: absolute; width: 15%; aspect-ratio: 1;
+            background-color: #fef3fc;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            animation: rotate 6s infinite linear;
+        }
+        .crack2 { width: 18%; animation-delay: 1s; }
+        .crack3 { width: 22%; animation-delay: 1.5s; }
+        .crack4 { width: 26%; animation-delay: 2s; }
+        .crack5 { width: 30%; animation-delay: 2.5s; }
+        @keyframes rotate { to { transform: rotate(360deg); } }
+
+        .step-item {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.3em; color: #444; margin: 4px 0;
+        }
+        .step-item.active { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.5); }
+        .step-item.completed { color: #fff; text-decoration: line-through; opacity: 0.3; }
+
+        #mainSidebar { transition: transform 0.3s ease, width 0.3s ease; }
+        #mainSidebar.collapsed { width: 0; transform: translateX(-100%); overflow: hidden; }
+        
+        .news-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s ease;
+        }
+        .news-card:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+
+        /* Chess Styling */
+        .chess-square {
+            width: 12.5%;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 2.5rem;
-            font-weight: 200;
-            letter-spacing: -0.02em;
-            margin-bottom: 20px;
+            cursor: pointer;
         }
-
-        .description {
-            color: var(--gray);
-            font-size: 0.9rem;
-            line-height: 1.8;
-            letter-spacing: 0.01em;
+        .square-light { background-color: #333; }
+        .square-dark { background-color: #111; }
+        .chess-piece { 
+            user-select: none;
+            transition: transform 0.2s ease;
         }
-
-        /* Hamster Animation - Monochrome Adjusted */
-        .wheel-and-hamster {
-            --dur: 1s;
-            position: relative;
-            width: 12em;
-            height: 12em;
-            font-size: 14px;
-        }
-
-        .wheel,
-        .hamster,
-        .hamster div,
-        .spoke {
-            position: absolute;
-        }
-
-        .wheel,
-        .spoke {
-            border-radius: 50%;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        .wheel {
-            background: radial-gradient(100% 100% at center, hsla(0,0%,0%,0) 47.8%, #000 48%);
-            z-index: 2;
-        }
-
-        .hamster {
-            animation: hamster var(--dur) ease-in-out infinite;
-            top: 50%;
-            left: calc(50% - 3.5em);
-            width: 7em;
-            height: 3.75em;
-            transform: rotate(4deg) translate(-0.8em,1.85em);
-            transform-origin: 50% 0;
-            z-index: 1;
-        }
-
-        .hamster__head {
-            animation: hamsterHead var(--dur) ease-in-out infinite;
-            background: #eee;
-            border-radius: 70% 30% 0 100% / 40% 25% 25% 60%;
-            box-shadow: 0 -0.25em 0 #ddd inset, 0.75em -1.55em 0 #fff inset;
-            top: 0;
-            left: -2em;
-            width: 2.75em;
-            height: 2.5em;
-            transform-origin: 100% 50%;
-        }
-
-        .hamster__ear {
-            animation: hamsterEar var(--dur) ease-in-out infinite;
-            background: #fff;
-            border-radius: 50%;
-            box-shadow: -0.25em 0 #eee inset;
-            top: -0.25em;
-            right: -0.25em;
-            width: 0.75em;
-            height: 0.75em;
-            transform-origin: 50% 75%;
-        }
-
-        .hamster__eye {
-            animation: hamsterEye var(--dur) linear infinite;
-            background-color: #000;
-            border-radius: 50%;
-            top: 0.375em;
-            left: 1.25em;
-            width: 0.5em;
-            height: 0.5em;
-        }
-
-        .hamster__nose {
-            background: #333;
-            border-radius: 35% 65% 85% 15% / 70% 50% 50% 30%;
-            top: 0.75em;
-            left: 0;
-            width: 0.2em;
-            height: 0.25em;
-        }
-
-        .hamster__body {
-            animation: hamsterBody var(--dur) ease-in-out infinite;
-            background: #fff;
-            border-radius: 50% 30% 50% 30% / 15% 60% 40% 40%;
-            box-shadow: 0.1em 0.75em 0 #eee inset, 0.15em -0.5em 0 #f9f9f9 inset;
-            top: 0.25em;
-            left: 2em;
-            width: 4.5em;
-            height: 3em;
-            transform-origin: 17% 50%;
-            transform-style: preserve-3d;
-        }
-
-        .hamster__limb--fr,
-        .hamster__limb--fl {
-            clip-path: polygon(0 0,100% 0,70% 80%,60% 100%,0% 100%,40% 80%);
-            top: 2em;
-            left: 0.5em;
-            width: 1em;
-            height: 1.5em;
-            transform-origin: 50% 0;
-        }
-
-        .hamster__limb--fr {
-            animation: hamsterFRLimb var(--dur) linear infinite;
-            background: linear-gradient(#ddd 80%, #ccc 80%);
-            transform: rotate(15deg) translateZ(-1px);
-        }
-
-        .hamster__limb--fl {
-            animation: hamsterFLLimb var(--dur) linear infinite;
-            background: linear-gradient(#eee 80%, #ddd 80%);
-            transform: rotate(15deg);
-        }
-
-        .hamster__limb--br,
-        .hamster__limb--bl {
-            border-radius: 0.75em 0.75em 0 0;
-            clip-path: polygon(0 0,100% 0,100% 30%,70% 90%,70% 100%,30% 100%,40% 90%,0% 30%);
-            top: 1em;
-            left: 2.8em;
-            width: 1.5em;
-            height: 2.5em;
-            transform-origin: 50% 30%;
-        }
-
-        .hamster__limb--br {
-            animation: hamsterBRLimb var(--dur) linear infinite;
-            background: linear-gradient(#ddd 90%, #ccc 90%);
-            transform: rotate(-25deg) translateZ(-1px);
-        }
-
-        .hamster__limb--bl {
-            animation: hamsterBLLimb var(--dur) linear infinite;
-            background: linear-gradient(#eee 90%, #ddd 90%);
-            transform: rotate(-25deg);
-        }
-
-        .hamster__tail {
-            animation: hamsterTail var(--dur) linear infinite;
-            background: #eee;
-            border-radius: 0.25em 50% 50% 0.25em;
-            box-shadow: 0 -0.2em 0 #ddd inset;
-            top: 1.5em;
-            right: -0.5em;
-            width: 1em;
-            height: 0.5em;
-            transform: rotate(30deg) translateZ(-1px);
-            transform-origin: 0.25em 0.25em;
-        }
-
-        .spoke {
-            animation: spoke var(--dur) linear infinite;
-            background: radial-gradient(100% 100% at center, #000 4.8%, hsla(0,0%,0%,0) 5%),
-                linear-gradient(hsla(0,0%,0%,0) 46.9%, #000 47% 52.9%, hsla(0,0%,0%,0) 53%) 50% 50% / 99% 99% no-repeat;
-        }
-
-        @keyframes hamster { from, to { transform: rotate(4deg) translate(-0.8em,1.85em); } 50% { transform: rotate(0) translate(-0.8em,1.85em); } }
-        @keyframes hamsterHead { from, 25%, 50%, 75%, to { transform: rotate(0); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(8deg); } }
-        @keyframes hamsterEye { from, 90%, to { transform: scaleY(1); } 95% { transform: scaleY(0); } }
-        @keyframes hamsterEar { from, 25%, 50%, 75%, to { transform: rotate(0); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(12deg); } }
-        @keyframes hamsterBody { from, 25%, 50%, 75%, to { transform: rotate(0); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-2deg); } }
-        @keyframes hamsterFRLimb { from, 25%, 50%, 75%, to { transform: rotate(50deg) translateZ(-1px); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-30deg) translateZ(-1px); } }
-        @keyframes hamsterFLLimb { from, 25%, 50%, 75%, to { transform: rotate(-30deg); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(50deg); } }
-        @keyframes hamsterBRLimb { from, 25%, 50%, 75%, to { transform: rotate(-60deg) translateZ(-1px); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(20deg) translateZ(-1px); } }
-        @keyframes hamsterBLLimb { from, 25%, 50%, 75%, to { transform: rotate(20deg); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-60deg); } }
-        @keyframes hamsterTail { from, 25%, 50%, 75%, to { transform: rotate(30deg) translateZ(-1px); } 12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(10deg) translateZ(-1px); } }
-        @keyframes spoke { from { transform: rotate(0); } to { transform: rotate(-1turn); } }
-
-        /* Footer */
-        footer {
-            padding: 40px;
-            display: flex;
-            justify-content: center;
-            border-top: 1px solid var(--border);
-        }
-
-        .server-stats {
-            display: flex;
-            justify-content: center;
-        }
-
-        .stat-item {
-            text-align: center;
-        }
-
-        .stat-label {
-            display: block;
-            font-size: 0.5rem;
-            color: var(--gray);
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-            margin-bottom: 5px;
-        }
-
-        .stat-value {
-            font-family: monospace;
-            font-size: 0.8rem;
-        }
+        .last-move { background-color: rgba(255, 255, 255, 0.1) !important; }
+        .highlighted { outline: 2px solid rgba(255, 255, 255, 0.3) inset; }
     </style>
 </head>
-<body>
+<body class="h-screen flex flex-row">
 
-    <header>
-        <div class="brand-logo">LUCIDLOOP</div>
-    </header>
+    <div id="loaderOverlay">
+        <div class="preloader">
+            <div class="crack crack1"></div>
+            <div class="crack crack2"></div>
+            <div class="crack crack3"></div>
+            <div class="crack crack4"></div>
+            <div class="crack crack5"></div>
+        </div>
+        <div id="loadingSteps" class="flex flex-col items-center mt-8">
+            <div class="step-item" id="step1">Creating Environment</div>
+            <div class="step-item" id="step2">Calling AI Models</div>
+            <div class="step-item" id="step3">Fetching Global Feed</div>
+            <div class="step-item" id="step4">Synchronizing Sentiment</div>
+        </div>
+    </div>
 
-    <main>
-        <div aria-label="Hamster running in wheel" role="img" class="wheel-and-hamster">
-            <div class="wheel"></div>
-            <div class="hamster">
-                <div class="hamster__body">
-                    <div class="hamster__head">
-                        <div class="hamster__ear"></div>
-                        <div class="hamster__eye"></div>
-                        <div class="hamster__nose"></div>
-                    </div>
-                    <div class="hamster__limb hamster__limb--fr"></div>
-                    <div class="hamster__limb hamster__limb--fl"></div>
-                    <div class="hamster__limb hamster__limb--br"></div>
-                    <div class="hamster__limb hamster__limb--bl"></div>
-                    <div class="hamster__tail"></div>
+    <!-- Sidebar -->
+    <aside id="mainSidebar" class="w-64 border-r border-white/5 flex flex-col hidden">
+        <div class="p-6 border-b border-white/5">
+            <div class="font-mono text-[10px] tracking-[0.3em] uppercase mb-4">Navigation</div>
+            <div class="space-y-2">
+                <button onclick="window.location.reload()" class="w-full border border-white/10 py-2 text-[10px] font-mono uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+                    + New Sync
+                </button>
+                <button id="openNewsBtn" class="w-full border border-white/10 py-2 text-[10px] font-mono uppercase tracking-widest hover:bg-zinc-800 transition-all text-zinc-400">
+                    LOOPNEWS
+                </button>
+                <button id="openChessBtn" class="w-full border border-white/10 py-2 text-[10px] font-mono uppercase tracking-widest hover:bg-zinc-800 transition-all text-zinc-400">
+                    LUCIDCHESS
+                </button>
+            </div>
+        </div>
+        <div id="historyPanel" class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide text-[11px] font-mono">
+            <div class="text-[9px] text-zinc-600 uppercase tracking-widest mb-4">Stream Logs</div>
+            <div id="activeLog" class="space-y-4"></div>
+        </div>
+        <div class="p-6 border-t border-white/5 space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono uppercase tracking-widest">Mindstorm</span>
+                <input type="checkbox" id="mindstormMode" class="toggle-checkbox accent-white" checked>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono uppercase tracking-widest">Chaos Mode</span>
+                <input type="checkbox" id="chaosMode" class="toggle-checkbox accent-white">
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <!-- Dashboard Header -->
+        <nav class="flex items-center justify-between px-8 py-6 z-50 border-b border-white/5">
+            <div class="flex items-center gap-6">
+                <button id="toggleSidebar" class="p-1 hover:bg-white/10 rounded transition-colors hidden">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-500"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="font-mono text-sm tracking-[0.3em] uppercase">
+                    Lucid<span class="text-zinc-500">Loop</span>
+                </div>
+                <div id="sessionStatus" class="text-[10px] text-zinc-600 font-mono uppercase tracking-widest border-l border-white/10 pl-4">
+                    Idle
                 </div>
             </div>
-            <div class="spoke"></div>
-        </div>
-
-        <div class="offline-notice">
-            <h1>Server is Down</h1>
-            <p class="description">
-                SORRY FOR THE WAIT. We are currently experiencing an unexpected technical loop. 
-                Our team is working to restore service as quickly as possible.
-                <br><br>
-                COME BACK AGAIN SOON.
-            </p>
-        </div>
-    </main>
-
-    <footer>
-        <div class="server-stats">
-            <div class="stat-item">
-                <span class="stat-label">Error Code</span>
-                <span class="stat-value">503_SERVICE_UNAVAILABLE</span>
+            <div id="activeControls" class="hidden gap-4">
+                <button id="terminateBtn" class="text-[10px] font-mono uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+                    [ Terminate ]
+                </button>
             </div>
+        </nav>
+
+        <!-- View Containers -->
+        <div id="viewWrapper" class="flex-1 overflow-hidden relative">
+            
+            <!-- Setup View -->
+            <div id="setupView" class="absolute inset-0 flex flex-col justify-center max-w-2xl mx-auto space-y-12 px-6">
+                <div class="space-y-2 text-center">
+                    <h2 class="text-3xl font-light tracking-tight text-white">Initialize Interaction</h2>
+                    <p class="text-zinc-500 text-sm font-mono uppercase tracking-widest">OpenRouter Multi-Key System</p>
+                </div>
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input id="p1Name" type="text" value="Elias" placeholder="P1 Name" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                        <input id="p1Job" type="text" value="Architect" placeholder="P1 Job" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                        <input id="p1Hobby" type="text" value="Chess" placeholder="P1 Hobby" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input id="p2Name" type="text" value="Trinity" placeholder="P2 Name" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                        <input id="p2Job" type="text" value="Analyst" placeholder="P2 Job" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                        <input id="p2Hobby" type="text" value="Deep Web" placeholder="P2 Hobby" class="bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                    </div>
+                    <input id="concept" type="text" placeholder="Topic Anchor (e.g. AI ethics, Web3)" class="w-full bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all text-sm">
+                    <button id="startBtn" class="w-full bg-white text-black text-xs font-mono uppercase tracking-widest py-4 hover:bg-zinc-200 transition-all">Establish Link</button>
+                </div>
+            </div>
+
+            <!-- Chat View -->
+            <div id="chatView" class="hidden absolute inset-0 flex-col max-w-5xl mx-auto w-full px-6">
+                <div id="chatContainer" class="flex-1 overflow-y-auto space-y-16 py-12 pr-4 scrollbar-hide"></div>
+                <div id="typingArea" class="h-24 flex items-center border-t border-white/5">
+                    <div id="typingIndicator" class="hidden flex items-center gap-4">
+                        <div class="flex gap-1"><span class="typing-dot"></span><span class="typing-dot" style="animation-delay:0.2s"></span><span class="typing-dot" style="animation-delay:0.4s"></span></div>
+                        <span id="typingName" class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest italic">Syncing...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- News View (LOOPNEWS) -->
+            <div id="newsView" class="hidden absolute inset-0 bg-black flex-col px-8 py-12 overflow-y-auto scrollbar-hide">
+                <div class="flex items-center justify-between mb-12 border-b border-white/10 pb-6">
+                    <h2 class="text-4xl font-light tracking-tighter">LOOP<span class="text-zinc-600">NEWS</span></h2>
+                    <button id="closeNewsBtn" class="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500 hover:text-white transition-all">[ BACK TO LOOP ]</button>
+                </div>
+                <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="col-span-full py-20 text-center text-zinc-700 font-mono uppercase tracking-widest text-xs">No active intelligence feed</div>
+                </div>
+            </div>
+
+            <!-- Chess View (LUCIDCHESS) -->
+            <div id="chessView" class="hidden absolute inset-0 bg-black flex-col items-center justify-center px-8 py-12 overflow-y-auto scrollbar-hide">
+                <div class="w-full max-w-2xl flex items-center justify-between mb-8">
+                    <h2 class="text-3xl font-light tracking-tighter">LUCID<span class="text-zinc-600">CHESS</span></h2>
+                    <button id="closeChessBtn" class="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500 hover:text-white transition-all">[ BACK TO LOOP ]</button>
+                </div>
+                
+                <div class="flex flex-col md:flex-row gap-12 items-center">
+                    <div id="chessBoard" class="w-[320px] h-[320px] md:w-[480px] md:h-[480px] border-2 border-white/10 flex flex-wrap shadow-2xl shadow-white/5">
+                        <!-- Squares generated by JS -->
+                    </div>
+                    
+                    <div class="w-full md:w-64 space-y-6">
+                        <div class="p-6 border border-white/5 bg-white/5 rounded">
+                            <div class="text-[10px] font-mono text-zinc-500 uppercase mb-2">Turn Status</div>
+                            <div id="chessStatus" class="text-xl font-light">White's Move</div>
+                        </div>
+                        <div class="p-6 border border-white/5 bg-white/5 rounded">
+                            <div class="text-[10px] font-mono text-zinc-500 uppercase mb-2">Move History</div>
+                            <div id="chessLog" class="text-[11px] font-mono h-32 overflow-y-auto scrollbar-hide text-zinc-400 space-y-1">
+                                <div>- Waiting for game start -</div>
+                            </div>
+                        </div>
+                        <!-- NEW AI MATCH BUTTON -->
+                        <button id="startAIMatchBtn" class="w-full border border-white/20 py-4 text-[10px] font-mono uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+                            Start AI Match
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
-    </footer>
+    </div>
+
+    <script>
+        const NEWS_API_KEY = "pub_b174d47a45c248b9a4f8fd0522b283fb";
+        
+        // Multi-API Logic
+        const API_KEYS = [
+            "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",
+            "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"
+        ];
+        let currentKeyIndex = 0;
+
+        const MODEL_ID = "arcee-ai/trinity-large-preview:free";
+
+        let isRunning = false;
+        let isChessAIMatchRunning = false;
+        let chatHistory = [];
+        let fetchedNews = [];
+        
+        // Chess Logic
+        const game = new Chess();
+        const pieceIcons = {
+            p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚',
+            P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔'
+        };
+
+        // UI Selectors
+        const elements = {
+            sidebar: document.getElementById('mainSidebar'),
+            toggleBtn: document.getElementById('toggleSidebar'),
+            setup: document.getElementById('setupView'),
+            chat: document.getElementById('chatView'),
+            news: document.getElementById('newsView'),
+            chess: document.getElementById('chessView'),
+            chatCont: document.getElementById('chatContainer'),
+            newsGrid: document.getElementById('newsGrid'),
+            loader: document.getElementById('loaderOverlay'),
+            log: document.getElementById('activeLog'),
+            status: document.getElementById('sessionStatus'),
+            typing: document.getElementById('typingIndicator'),
+            board: document.getElementById('chessBoard'),
+            chessStatus: document.getElementById('chessStatus'),
+            chessLog: document.getElementById('chessLog'),
+            terminateBtn: document.getElementById('terminateBtn'),
+            startAIMatchBtn: document.getElementById('startAIMatchBtn')
+        };
+
+        // Initialize Board
+        function initBoard() {
+            elements.board.innerHTML = '';
+            for (let i = 0; i < 64; i++) {
+                const square = document.createElement('div');
+                const row = Math.floor(i / 8);
+                const col = i % 8;
+                const isDark = (row + col) % 2 === 1;
+                const squareId = String.fromCharCode(97 + col) + (8 - row);
+                
+                square.id = `sq-${squareId}`;
+                square.className = `chess-square ${isDark ? 'square-dark' : 'square-light'}`;
+                elements.board.appendChild(square);
+            }
+            updateBoard();
+        }
+
+        function updateBoard() {
+            const board = game.board();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const squareId = String.fromCharCode(97 + c) + (8 - r);
+                    const squareEl = document.getElementById(`sq-${squareId}`);
+                    const piece = board[r][c];
+                    
+                    squareEl.innerHTML = '';
+                    if (piece) {
+                        const span = document.createElement('span');
+                        span.className = 'chess-piece';
+                        span.textContent = pieceIcons[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+                        squareEl.appendChild(span);
+                    }
+                }
+            }
+            
+            const turn = game.turn() === 'w' ? 'White' : 'Black';
+            elements.chessStatus.textContent = game.game_over() ? `Game Over: ${game.in_checkmate() ? 'Checkmate' : 'Draw'}` : `${turn}'s Move`;
+            if (game.in_check() && !game.game_over()) elements.chessStatus.textContent += ' (Check)';
+        }
+
+        function logMove(move) {
+            const div = document.createElement('div');
+            div.textContent = `> ${move.from} to ${move.to} (${move.piece})`;
+            elements.chessLog.prepend(div);
+        }
+
+        // Navigation Logic
+        elements.toggleBtn.onclick = () => elements.sidebar.classList.toggle('collapsed');
+        
+        document.getElementById('openNewsBtn').onclick = () => switchView('news');
+        document.getElementById('closeNewsBtn').onclick = () => switchView('main');
+        document.getElementById('openChessBtn').onclick = () => switchView('chess');
+        document.getElementById('closeChessBtn').onclick = () => switchView('main');
+
+        function switchView(target) {
+            elements.news.classList.add('hidden');
+            elements.chess.classList.add('hidden');
+            elements.chat.classList.add('hidden');
+            elements.setup.classList.add('hidden');
+
+            if (target === 'news') {
+                elements.news.classList.replace('hidden', 'flex');
+                elements.sidebar.classList.add('collapsed');
+            } else if (target === 'chess') {
+                elements.chess.classList.replace('hidden', 'flex');
+                elements.sidebar.classList.add('collapsed');
+                initBoard();
+            } else {
+                if(isRunning) elements.chat.classList.remove('hidden');
+                else elements.setup.classList.remove('hidden');
+                elements.sidebar.classList.remove('collapsed');
+            }
+        }
+
+        // News Logic
+        async function fetchNews(query) {
+            try {
+                const res = await fetch(`https://newsdata.io/api/1/news?apikey=${NEWS_API_KEY}&q=${encodeURIComponent(query || "Technology")}&language=en`);
+                const data = await res.json();
+                fetchedNews = data.results || [];
+                renderNews();
+                return fetchedNews.slice(0, 3).map(n => `[NEWS: ${n.title}]`).join(' ');
+            } catch (e) { return ""; }
+        }
+
+        function renderNews() {
+            if (!fetchedNews.length) return;
+            elements.newsGrid.innerHTML = fetchedNews.map(n => `
+                <a href="${n.link}" target="_blank" class="news-card p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="text-[9px] font-mono text-zinc-600 uppercase mb-4">${n.source_id || 'Global Feed'}</div>
+                        <h3 class="text-lg font-light leading-tight mb-4">${n.title}</h3>
+                        <p class="text-xs text-zinc-500 line-clamp-3 mb-6">${n.description || ''}</p>
+                    </div>
+                    <div class="text-[10px] font-mono uppercase tracking-widest text-white/40">Read Intelligence →</div>
+                </a>
+            `).join('');
+        }
+
+        async function callAI(messages, systemPrompt) {
+            async function attemptRequest(key) {
+                try {
+                    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                        method: "POST",
+                        headers: { 
+                            "Authorization": `Bearer ${key}`, 
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": window.location.href,
+                            "X-Title": "LucidLoop"
+                        },
+                        body: JSON.stringify({
+                            model: MODEL_ID,
+                            messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-8)],
+                            temperature: document.getElementById('chaosMode').checked ? 1.2 : 0.7
+                        })
+                    });
+                    
+                    if (!res.ok) throw new Error("API Limit or Error");
+                    const data = await res.json();
+                    return data.choices?.[0]?.message?.content;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            let result = await attemptRequest(API_KEYS[currentKeyIndex]);
+            if (!result) {
+                currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+                result = await attemptRequest(API_KEYS[currentKeyIndex]);
+            }
+            return result;
+        }
+
+        function appendEntry(name, job, contentObj, turn) {
+            const isP1 = turn % 2 === 0;
+            const div = document.createElement('div');
+            div.className = `flex gap-6 animate-msg ${isP1 ? 'flex-row' : 'flex-row-reverse'} items-start`;
+            
+            const thought = contentObj.thought && document.getElementById('mindstormMode').checked 
+                ? `<div class="thought-process">// ANALYSIS: ${contentObj.thought}</div>` : '';
+
+            div.innerHTML = `
+                <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}&backgroundColor=111111" class="w-10 h-10 avatar-retro">
+                <div class="flex-1 flex flex-col ${isP1 ? 'items-start' : 'items-end'}">
+                    <div class="text-[10px] font-mono mb-2 uppercase tracking-widest text-zinc-500">${name} / ${job}</div>
+                    ${thought}
+                    <div class="text-[15px] font-light leading-relaxed text-zinc-300 ${isP1 ? 'text-left' : 'text-right'} max-w-xl">${contentObj.message}</div>
+                    <div class="emoji-reaction text-[10px] font-mono text-zinc-600">${contentObj.emoji || '⚓'} ${contentObj.feeling || ''}</div>
+                </div>`;
+            elements.chatCont.appendChild(div);
+            elements.chatCont.scrollTo({ top: elements.chatCont.scrollHeight, behavior: 'smooth' });
+            
+            const log = document.createElement('div');
+            log.className = "pb-2 border-b border-white/5 opacity-50 hover:opacity-100 transition-opacity";
+            log.innerHTML = `<span class="text-white uppercase text-[9px]">${name}:</span> <span class="line-clamp-1">${contentObj.message}</span>`;
+            elements.log.prepend(log);
+        }
+
+        // AI CHESS MATCH LOGIC (NEW FEATURE)
+        async function startAIChessMatch() {
+            if (isChessAIMatchRunning) return;
+            isChessAIMatchRunning = true;
+            elements.startAIMatchBtn.textContent = "[ AI MATCH IN PROGRESS ]";
+            elements.startAIMatchBtn.disabled = true;
+            
+            game.reset();
+            initBoard();
+            elements.chessLog.innerHTML = "<div>- Starting AI vs AI Duel -</div>";
+
+            while (isChessAIMatchRunning && !game.game_over()) {
+                const turn = game.turn() === 'w' ? 'White AI' : 'Black AI';
+                const moves = game.moves();
+                const fen = game.fen();
+                
+                const systemPrompt = `You are a Chess Grandmaster playing a match. Current FEN: ${fen}. Legal moves: ${moves.join(', ')}. 
+                Respond ONLY with JSON: {"chessMove": "selected_move", "thought": "brief reasoning"}`;
+                
+                const response = await callAI([], systemPrompt);
+                
+                if (!response) break;
+                
+                try {
+                    const clean = response.replace(/```json|```/g, '').trim();
+                    const json = JSON.parse(clean);
+                    const move = game.move(json.chessMove);
+                    
+                    if (move) {
+                        updateBoard();
+                        logMove(move);
+                        const moveDiv = document.createElement('div');
+                        moveDiv.className = "text-[9px] text-white/30 italic";
+                        moveDiv.textContent = `// AI: ${json.thought}`;
+                        elements.chessLog.prepend(moveDiv);
+                    }
+                } catch (e) {
+                    console.error("Chess AI Error", e);
+                }
+                
+                // Visual delay between moves
+                await new Promise(r => setTimeout(r, 2000));
+            }
+            
+            isChessAIMatchRunning = false;
+            elements.startAIMatchBtn.textContent = "Start AI Match";
+            elements.startAIMatchBtn.disabled = false;
+            elements.chessStatus.textContent += " - Duel Concluded";
+        }
+
+        elements.startAIMatchBtn.onclick = startAIChessMatch;
+
+        // TERMINATE FUNCTIONALITY
+        elements.terminateBtn.onclick = () => {
+            isRunning = false;
+            isChessAIMatchRunning = false;
+            elements.status.textContent = "Terminated";
+            setTimeout(() => {
+                switchView('setup');
+                isRunning = false;
+                elements.chatCont.innerHTML = "";
+                elements.log.innerHTML = "";
+                game.reset();
+                initBoard();
+                document.getElementById('activeControls').classList.add('hidden');
+                elements.status.textContent = "Idle";
+            }, 500);
+        };
+
+        document.getElementById('startBtn').onclick = async () => {
+            const context = document.getElementById('concept').value || "Digital Existentialism";
+            
+            elements.loader.style.display = 'flex';
+            const newsString = await fetchNews(context);
+            initBoard();
+            
+            for(let i=1; i<=4; i++) {
+                document.getElementById(`step${i}`).classList.add('active');
+                await new Promise(r => setTimeout(r, 600));
+                document.getElementById(`step${i}`).classList.replace('active', 'completed');
+            }
+            elements.loader.style.display = 'none';
+
+            const p1 = { 
+                name: document.getElementById('p1Name').value, 
+                job: document.getElementById('p1Job').value,
+                hobby: document.getElementById('p1Hobby').value
+            };
+            const p2 = { 
+                name: document.getElementById('p2Name').value, 
+                job: document.getElementById('p2Job').value,
+                hobby: document.getElementById('p2Hobby').value
+            };
+
+            isRunning = true;
+            elements.setup.classList.add('hidden');
+            elements.chat.classList.replace('hidden', 'flex');
+            elements.sidebar.classList.remove('hidden');
+            elements.toggleBtn.classList.remove('hidden');
+            document.getElementById('activeControls').classList.remove('hidden');
+            elements.status.textContent = "Sync Active";
+
+            chatHistory = [{ role: "user", content: `Start dialogue: ${context}. Context: ${newsString}` }];
+            let turn = 0;
+
+            while(isRunning) {
+                const current = turn % 2 === 0 ? p1 : p2;
+                document.getElementById('typingName').textContent = `${current.name.toUpperCase()} IS PROCESSING...`;
+                elements.typing.classList.remove('hidden');
+
+                // Chess Instruction: Only if hobby is Chess
+                let chessInstruction = "";
+                if(current.hobby.toLowerCase().includes('chess')) {
+                    const moves = game.moves();
+                    if (game.game_over()) {
+                        chessInstruction = `The chess game is over (${game.in_checkmate() ? 'Checkmate' : 'Draw'}). Do not provide any more chess moves. Focus on dialogue.`;
+                    } else {
+                        chessInstruction = `Current Chess FEN: ${game.fen()}. Possible moves: ${moves.join(', ')}. To move, include "chessMove": "selected_move" (SAN format) in your JSON.`;
+                    }
+                }
+
+                const system = `Roleplay as ${current.name}, ${current.job}. Hobby: ${current.hobby}. Topic: ${context}. ${chessInstruction} YOU MUST OUTPUT ONLY VALID JSON. Structure: {"thought": "reasoning...", "message": "dialogue...", "feeling": "state...", "emoji": "...", "chessMove": "optional"}`;
+                const raw = await callAI(chatHistory, system);
+                
+                if(!isRunning) break; // Check again after await
+                elements.typing.classList.add('hidden');
+
+                if(!raw) {
+                    console.log("Empty AI response, retrying...");
+                    await new Promise(r => setTimeout(r, 2000));
+                    continue;
+                }
+                
+                try {
+                    const cleanRaw = raw.replace(/```json|```/g, '').trim();
+                    const json = JSON.parse(cleanRaw);
+                    
+                    if(json.chessMove && !game.game_over()) {
+                        const move = game.move(json.chessMove);
+                        if(move) {
+                            updateBoard();
+                            logMove(move);
+                        } else {
+                            console.warn("Invalid chess move suggested by AI:", json.chessMove);
+                        }
+                    }
+
+                    appendEntry(current.name, current.job, json, turn);
+                    chatHistory.push({ role: "assistant", content: `${current.name}: ${json.message}` });
+                    turn++;
+                } catch(e) { 
+                    console.error("Interaction Error Parsing JSON", e);
+                    appendEntry(current.name, current.job, { message: "Sync corrupted. Re-calibrating streams...", thought: "JSON Parse Error", emoji: "⚠️" }, turn);
+                    await new Promise(r => setTimeout(r, 2000)); 
+                    turn++;
+                }
+                
+                // Interaction Delay
+                await new Promise(r => {
+                    const timeoutId = setTimeout(r, 3500);
+                    const checkInterval = setInterval(() => {
+                        if(!isRunning) {
+                            clearTimeout(timeoutId);
+                            clearInterval(checkInterval);
+                            r();
+                        }
+                    }, 100);
+                });
+            }
+        };
+    </script>
 </body>
 </html>
