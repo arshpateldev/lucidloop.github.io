@@ -291,14 +291,21 @@
     <script>
         const NEWS_API_KEY = "pub_b174d47a45c248b9a4f8fd0522b283fb";
         
-        // Multi-API Logic
-        const API_KEYS = [
-            "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",
-            "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"
+        // --- API CONFIGURATION ---
+        // Chess Specific (arcee-ai/trinity-large-preview:free)
+        const CHESS_KEYS = [
+            "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", // P1 Key
+            "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"  // P2 Key
         ];
-        let currentKeyIndex = 0;
+        const CHESS_MODEL = "arcee-ai/trinity-large-preview:free";
 
-        const MODEL_ID = "arcee-ai/trinity-large-preview:free";
+        // Debate/Talk Specific (stepfun/step-3.5-flash)
+        const DEBATE_KEYS = [
+            "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", // AI 1 Key
+            "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"  // AI 2 Key
+        ];
+        const DEBATE_MODEL = "stepfun/step-3.5-flash";
+        // -------------------------
 
         let isRunning = false;
         let isChessAIMatchRunning = false;
@@ -432,38 +439,33 @@
             `).join('');
         }
 
-        async function callAI(messages, systemPrompt) {
-            async function attemptRequest(key) {
-                try {
-                    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: { 
-                            "Authorization": `Bearer ${key}`, 
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": window.location.href,
-                            "X-Title": "LucidLoop"
-                        },
-                        body: JSON.stringify({
-                            model: MODEL_ID,
-                            messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-8)],
-                            temperature: document.getElementById('chaosMode').checked ? 1.2 : 0.7
-                        })
-                    });
-                    
-                    if (!res.ok) throw new Error("API Limit or Error");
-                    const data = await res.json();
-                    return data.choices?.[0]?.message?.content;
-                } catch (e) {
-                    return null;
-                }
-            }
+        async function callAI(messages, systemPrompt, type = 'debate', turnIndex = 0) {
+            const key = type === 'chess' ? CHESS_KEYS[turnIndex % 2] : DEBATE_KEYS[turnIndex % 2];
+            const model = type === 'chess' ? CHESS_MODEL : DEBATE_MODEL;
 
-            let result = await attemptRequest(API_KEYS[currentKeyIndex]);
-            if (!result) {
-                currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
-                result = await attemptRequest(API_KEYS[currentKeyIndex]);
+            try {
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: { 
+                        "Authorization": `Bearer ${key}`, 
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": window.location.href,
+                        "X-Title": "LucidLoop"
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "system", content: systemPrompt }, ...messages.slice(-8)],
+                        temperature: document.getElementById('chaosMode').checked ? 1.2 : 0.7
+                    })
+                });
+                
+                if (!res.ok) throw new Error("API Limit or Error");
+                const data = await res.json();
+                return data.choices?.[0]?.message?.content;
+            } catch (e) {
+                console.error("API Call failed:", e);
+                return null;
             }
-            return result;
         }
 
         function appendEntry(name, job, contentObj, turn) {
@@ -502,15 +504,16 @@
             initBoard();
             elements.chessLog.innerHTML = "<div>- Starting AI vs AI Duel -</div>";
 
+            let chessTurn = 0;
             while (isChessAIMatchRunning && !game.game_over()) {
-                const turn = game.turn() === 'w' ? 'White AI' : 'Black AI';
                 const moves = game.moves();
                 const fen = game.fen();
                 
                 const systemPrompt = `You are a Chess Grandmaster playing a match. Current FEN: ${fen}. Legal moves: ${moves.join(', ')}. 
                 Respond ONLY with JSON: {"chessMove": "selected_move", "thought": "brief reasoning"}`;
                 
-                const response = await callAI([], systemPrompt);
+                // Uses Chess Keys and Model
+                const response = await callAI([], systemPrompt, 'chess', chessTurn);
                 
                 if (!response) break;
                 
@@ -526,6 +529,7 @@
                         moveDiv.className = "text-[9px] text-white/30 italic";
                         moveDiv.textContent = `// AI: ${json.thought}`;
                         elements.chessLog.prepend(moveDiv);
+                        chessTurn++;
                     }
                 } catch (e) {
                     console.error("Chess AI Error", e);
@@ -603,7 +607,9 @@
 
                 // Chess Instruction: Only if hobby is Chess
                 let chessInstruction = "";
+                let callType = 'debate';
                 if(current.hobby.toLowerCase().includes('chess')) {
+                    callType = 'chess'; // Switch to chess keys if hobby is chess
                     const moves = game.moves();
                     if (game.game_over()) {
                         chessInstruction = `The chess game is over (${game.in_checkmate() ? 'Checkmate' : 'Draw'}). Do not provide any more chess moves. Focus on dialogue.`;
@@ -613,9 +619,11 @@
                 }
 
                 const system = `Roleplay as ${current.name}, ${current.job}. Hobby: ${current.hobby}. Topic: ${context}. ${chessInstruction} YOU MUST OUTPUT ONLY VALID JSON. Structure: {"thought": "reasoning...", "message": "dialogue...", "feeling": "state...", "emoji": "...", "chessMove": "optional"}`;
-                const raw = await callAI(chatHistory, system);
                 
-                if(!isRunning) break; // Check again after await
+                // Uses assigned debate/chess keys and models
+                const raw = await callAI(chatHistory, system, callType, turn);
+                
+                if(!isRunning) break; 
                 elements.typing.classList.add('hidden');
 
                 if(!raw) {
